@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Treasure Hunt</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f0f0;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+
+   .main-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+   .container {
+      background-color: white;
+      border: 1px solid #ccc;
+      padding: 20px;
+      margin: 20px auto;
+      max-width: 600px;
+      position: relative;
+      z-index: 1;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+   .clue {
+      font-size: 18px;
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      background-color: #f9f9f9;
+    }
+
+   .image-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 0;
+    }
+
+   .image-overlay img {
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      border: none;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+      transition: transform 0.3s ease-in-out;
+    }
+
+   .image-overlay:hover img {
+      transform: scale(1.05);
+    }
+
+    button {
+      padding: 10px 20px;
+      margin-top: 20px;
+      background: linear-gradient(to bottom, #4CAF50, #388E3C);
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    button:hover {
+      background: linear-gradient(to bottom, #388E3C, #2E7D32);
+    }
+
+    button:active {
+      transform: translateY(2px);
+    }
+
+    #nextButton {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <audio id="backgroundMusic" loop>
+    <source src="751003852.mp3" type="audio/mp3">
+  </audio>
+  <div class="main-container">
+    <div class="image-overlay" id="imageOverlay">
+      <img src="" alt="Treasure Hunt Image" id="overlayImage">
+    </div>
+    <div class="container">
+      <h1>Treasure Hunt</h1>
+      <p>Embark on an exciting adventure to find the legendary treasure!</p>
+      <button id="startButton" onclick="startTreasureHunt()">寻宝开始</button>
+      <div class="clue" id="clue"></div>
+      <button id="nextButton" onclick="nextStep()" style="display: none;">下一步</button>
+    </div>
+  </div>
+
+  <script>
+    // 背景音乐播放
+    document.getElementById('backgroundMusic').play();
+
+    // Web Storage API存储玩家信息
+    function storePlayerInfo(playerId, nickname) {
+      localStorage.setItem('playerId', playerId);
+      localStorage.setItem('nickname', nickname);
+    }
+
+    function retrievePlayerInfo() {
+      return {
+        playerId: localStorage.getItem('playerId'),
+        nickname: localStorage.getItem('nickname'),
+        history: JSON.parse(localStorage.getItem('history')) || []
+      };
+    }
+
+    function updateGameHistory(history) {
+      localStorage.setItem('history', JSON.stringify(history));
+    }
+
+    // Fetch API加载资料
+    async function loadElementData(element) {
+      const response = await fetch(`${element}.txt`);
+      const data = await response.text();
+      return data;
+    }
+
+    let currentStep = 0;
+    const steps = [
+      {
+        action: async () => {
+          document.getElementById('clue').textContent = "你来到了一座古老的图书馆，这里弥漫着神秘的气息。";
+          showImage('images/library.png');
+          const clue = await TreasureMap.getInitialClue();
+          document.getElementById('clue').textContent = clue;
+        }
+      },
+      {
+        action: async () => {
+          document.getElementById('clue').textContent = "你带着线索，开始尝试解码古代文字。";
+          showImage('images/ancient_script.png');
+          const clue = document.getElementById('clue').textContent;
+          const location = await TreasureMap.decodeAncientScript(clue);
+          document.getElementById('clue').textContent = location;
+        }
+      },
+      {
+        action: async () => {
+          document.getElementById('clue').textContent = "前方是危险的森林，准备穿越。";
+          showImage('images/dangerous_forest.png');
+          const forestResult = await TreasureMap.crossDangerousForest();
+          document.getElementById('clue').textContent = forestResult;
+        }
+      },
+      {
+        action: async () => {
+          document.getElementById('clue').textContent = "面前是一条湍急的河流，需要想办法渡过。";
+          showImage('images/rapid_river.png');
+          const riverResult = await TreasureMap.crossRapidRiver();
+          document.getElementById('clue').textContent = riverResult;
+        }
+      },
+      {
+        action: async () => {
+          document.getElementById('clue').textContent = "你根据线索来到了古老的神庙，准备寻找宝藏。";
+          showImage('images/temple.png');
+          const location = document.getElementById('clue').textContent;
+          const box = await TreasureMap.searchTemple(location);
+          document.getElementById('clue').textContent = box;
+        }
+      },
+      {
+        action: async () => {
+          document.getElementById('clue').textContent = "你找到了神秘的箱子，心跳加速，准备打开它。";
+          showImage('images/treasure_box.png');
+          const treasure = await TreasureMap.openTreasureBox();
+          document.getElementById('clue').textContent = treasure;
+        }
+      }
+    ];
+
+    // TreasureMap类和方法修改，使用loadElementData加载资料
+    class TreasureMap {
+      static getInitialClue() {
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve("在古老的图书馆里找到了第一个线索...");
+            showImage('images/clue.png')
+          }, 1800);
+        });
+      }
+
+      static decodeAncientScript(clue) {
+        return new Promise((resolve, reject) => {
+          setTimeout(() => {
+            if (!clue) {
+              reject("没有线索可以解码!");
+            }
+            resolve("解码成功!宝藏在一座古老的神庙中...");
+            showImage('images/temple.png')
+          }, 1800);
+        });
+      }
+
+      static searchTemple(location) {
+        return new Promise((resolve, reject) => {
+          setTimeout(() => {
+            const random = Math.random();
+            if (random < 0.5) {
+              showImage('images/protector.png');
+              reject("糟糕!遇到了神庙守卫!");
+            }
+            resolve("找到了一个神秘的箱子...");
+            showImage('images/treasure_box.png')
+          }, 1800);
+        });
+      }
+
+      static openTreasureBox() {
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve("恭喜!你找到了传说中的宝藏!");
+            showImage('images/treasure.png')
+          }, 1800);
+        });
+      }
+
+      static crossDangerousForest() {
+        return new Promise((resolve, reject) => {
+          setTimeout(() => {
+            const random = Math.random();
+            if (random < 0.4) {
+              showImage('images/beast.png');
+              reject("遇到了凶猛的野兽，被迫返回！");
+            } else {
+              resolve("成功穿越危险森林，继续前进...");
+              showImage('images/keepgoing.png');
+            }
+          }, 1800);
+        });
+      }
+
+      static crossRapidRiver() {
+        return new Promise((resolve, reject) => {
+          setTimeout(() => {
+            const random = Math.random();
+            if (random < 0.3) {
+              reject("河水太湍急，无法渡过！");
+            }
+            resolve("找到了一艘小船，成功渡过湍急河流...");
+            showImage('images/boat.png');
+          }, 1800);
+        });
+      }
+
+    }
+
+    async function findTreasureWithAsyncAwait() {
+      try {
+        const currentStepObject = steps[currentStep];
+        await currentStepObject.action();
+        if (currentStep < steps.length - 1) {
+          document.getElementById('nextButton').style.display = 'block';
+        }
+      } catch (error) {
+        document.getElementById('clue').textContent = "任务失败: " + error;
+        hideImage();
+      }
+    }
+
+    // 游戏开始和下一步函数修改，添加玩家信息存储和恢复
+    function startTreasureHunt() {
+      const playerId = prompt("请输入玩家 ID:");
+      const nickname = prompt("请输入昵称:");
+      storePlayerInfo(playerId, nickname);
+      const startButton = document.getElementById('startButton');
+      startButton.style.display = 'none';
+      findTreasureWithAsyncAwait();
+      document.getElementById('backgroundMusic').play();
+    }
+
+    function nextStep() {
+      currentStep++;
+      document.getElementById('nextButton').style.display = 'none';
+      findTreasureWithAsyncAwait();
+      const playerInfo = retrievePlayerInfo();
+      updateGameHistory([...playerInfo.history, `步骤${currentStep}:${document.getElementById('clue').textContent}`]);
+    }
+
+    function showImage(imageName) {
+      const overlay = document.getElementById('imageOverlay');
+      const overlayImage = document.getElementById('overlayImage');
+      overlayImage.src = imageName;
+      overlay.style.display = 'flex';
+    }
+
+    function hideImage() {
+      const overlay = document.getElementById('imageOverlay');
+      overlay.style.display = 'none';
+    }
+
+    function delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // 检查是否有存储的玩家信息，如果有，恢复游戏历史
+    window.onload = () => {
+      const playerInfo = retrievePlayerInfo();
+      if (playerInfo.playerId && playerInfo.nickname) {
+        alert(`欢迎回来，${playerInfo.nickname}!`);
+        // 恢复游戏历史到页面上的逻辑（根据实际需求实现）
+      }
+    };
+  </script>
+</body>
+
+</html>
